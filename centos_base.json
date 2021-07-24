@@ -1,0 +1,78 @@
+{
+  "variables": {
+    "admin_passwd": "P@ssw0rd",
+    "admin_user": "admin",
+    "files_dir": "./files",
+    "shutdown_command": "sudo poweroff "
+  },
+  "builders": [
+    {
+      "boot_command": [
+        "<up><wait><tab><wait> text ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter><wait>"
+      ],
+      "format": "ova",
+      "guest_additions_mode": "disable",
+      "memory": "2048",
+      "guest_os_type": "RedHat_64",
+      "output_directory": "./output",
+      "hard_drive_discard": true,
+      "hard_drive_interface": "sata",
+      "hard_drive_nonrotational": true,
+      "shutdown_command": "sudo poweroff",
+      "iso_url": "./isos/CentOS-8.2.2004-x86_64-minimal.iso",
+      "iso_checksum": "file:./isos/shasum.txt",
+      "http_directory": "./http",
+      "ssh_username": "admin",
+      "ssh_private_key_file": "{{ user `files_dir` }}/acit_admin_id_rsa",
+      "ssh_pty": "true",
+      "ssh_timeout": "20m",
+      "type": "virtualbox-iso",
+      "vboxmanage": [
+        ["modifyvm", "{{.Name}}", "--nictype1", "virtio"],
+        ["modifyvm", "{{.Name}}", "--natpf1", "SSH,tcp,,8022,,22"]
+      ],
+      "vm_name": "4640_BASE"
+    }
+  ],
+  "description": "Packer basebox for 4640",
+  "provisioners": [
+    {
+      "inline": ["sudo dnf install -y nginx"],
+      "type": "shell"
+    },
+    {
+      "destination": "/tmp/nginx.conf",
+      "source": "{{ user `files_dir` }}/nginx.conf",
+      "type": "file"
+    },
+    {
+      "inline": ["sudo mv /tmp/nginx.conf /etc/nginx/nginx.conf"],
+      "type": "shell"
+    },
+    {
+      "destination": "/tmp/",
+      "sources": [
+        "{{ user `files_dir` }}/mongodb-org-4.4.repo",
+        "{{ user `files_dir` }}/todoapp.service"
+      ],
+      "type": "file"
+    },
+    {
+      "inline": [
+        "sudo mv /tmp/mongodb-org-4.4.repo /etc/yum.repos.d/mongodb-org-4.4.repo",
+        "sudo mv /tmp/todoapp.service /etc/systemd/system/todoapp.service",
+        "sudo chmod 644 /etc/systemd/system/todoapp.service",
+        "sudo dnf install -y git",
+        "sudo dnf install -y nodejs",
+        "sudo dnf install -y mongodb-org",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable nginx",
+        "sudo systemctl enable mongod",
+        "sudo systemctl enable todoapp",
+        "sudo -i -u todoapp git clone https://github.com/timoguic/ACIT4640-todo-app.git /home/todoapp/app",
+        "sudo -i -u todoapp npm --prefix /home/todoapp/app install /home/todoapp/app"
+      ],
+      "type": "shell"
+    }
+  ]
+}
